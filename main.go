@@ -1,72 +1,64 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
+	"hello-go/blockchain"
+	"hello-go/config"
+	"hello-go/database"
 	"log"
-
-	_ "github.com/go-sql-driver/mysql"
 )
 
-type User struct {
-	ID   int
-	Name string
-	Age  int
-}
-
 func main() {
-	// 1. 连接数据库
-	dsn := "root:123456@tcp(127.0.0.1:3306)/test?charset=utf8mb4&parseTime=True&loc=Local"
-	db, err := sql.Open("mysql", dsn)
+	// 初始化数据库连接
+	dbConfig := config.GetDBConfig()
+	db, err := database.NewMySQLDB(dbConfig)
 	if err != nil {
-		log.Fatal("数据库连接失败:", err)
+		log.Fatal("Failed to connect to database:", err)
 	}
 	defer db.Close()
 
-	// 2. 创建表
-	createTable := `
-        CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(64) NOT NULL,
-            age INT
-        );
-    `
-	_, err = db.Exec(createTable)
-	if err != nil {
-		log.Fatal("建表失败:", err)
-	}
+	// 初始化区块链数据访问层
+	blockchainDB := database.NewBlockchainMySQL(db)
 
-	// 3. 插入数据
-	insertSQL := "INSERT INTO users (name, age) VALUES (?, ?)"
-	res, err := db.Exec(insertSQL, "Alice", 20)
-	if err != nil {
-		log.Fatal("插入失败:", err)
-	}
-	id, _ := res.LastInsertId()
-	fmt.Println("插入ID:", id)
+	// 创建区块链实例
+	bc := blockchain.NewBlockchain(blockchainDB)
 
-	// 4. 查询数据
-	rows, err := db.Query("SELECT id, name, age FROM users")
+	// 检查是否有创世区块，如果没有则创建
+	latestBlock, err := blockchainDB.GetLatestBlock()
 	if err != nil {
-		log.Fatal("查询失败:", err)
-	}
-	defer rows.Close()
-
-	fmt.Println("所有用户：")
-	for rows.Next() {
-		var u User
-		err := rows.Scan(&u.ID, &u.Name, &u.Age)
+		// 创建创世区块
+		genesis, err := bc.CreateGenesisBlock()
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal("Failed to create genesis block:", err)
 		}
-		fmt.Printf("ID:%d, Name:%s, Age:%d\n", u.ID, u.Name, u.Age)
+		fmt.Printf("Created genesis block: %s\n", genesis.Hash)
+	} else {
+		fmt.Printf("Latest block: Index=%d, Hash=%s\n", latestBlock.Index, latestBlock.Hash)
 	}
 
-	// 5. 更新数据
-	_, err = db.Exec("UPDATE users SET age=? WHERE name=?", 21, "Alice")
+	// 创建新区块
+	newBlock, err := bc.CreateNewBlock("Transaction data 1", 4)
 	if err != nil {
-		log.Fatal("更新失败:", err)
+		log.Fatal("Failed to create new block:", err)
 	}
-	fmt.Println("更新成功")
+	fmt.Printf("Created new block: Index=%d, Hash=%s\n", newBlock.Index, newBlock.Hash)
 
+	// 验证区块链
+	isValid, err := bc.ValidateChain()
+	if err != nil {
+		log.Fatal("Failed to validate chain:", err)
+	}
+	fmt.Printf("Blockchain is valid: %t\n", isValid)
+
+	// 显示所有区块
+	blocks, err := blockchainDB.GetAllBlocks()
+	if err != nil {
+		log.Fatal("Failed to get all blocks:", err)
+	}
+
+	fmt.Println("\nAll blocks:")
+	for _, block := range blocks {
+		fmt.Printf("Index: %d, Hash: %s, Data: %s\n",
+			block.Index, block.Hash, block.Data)
+	}
 }
