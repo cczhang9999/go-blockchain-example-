@@ -5,8 +5,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hello-go/models"
+	"log"
 	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type Blockchain struct {
@@ -20,6 +23,10 @@ type Database interface {
 	GetAllBlocks() ([]*models.Block, error)
 	SaveTransaction(tx *models.Transaction) error
 	GetTransactionsByBlockID(blockID int64) ([]*models.Transaction, error)
+	SaveWallet(*models.Wallet) error
+	TopUpWallet(address string) error
+	Transfer(addressFrom string, addressTo string, balance float64) error
+	GetBalance(address string) (float64, error)
 }
 
 func NewBlockchain(db Database) *Blockchain {
@@ -121,4 +128,51 @@ func (bc *Blockchain) ValidateChain() (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (bc *Blockchain) CreateNewWallet() (*models.Wallet, error) {
+	privateKey, err := crypto.GenerateKey()
+	if err != nil {
+		return nil, err
+	}
+	privateKeyBytes := crypto.FromECDSA(privateKey)
+	address := crypto.PubkeyToAddress(privateKey.PublicKey).Hex()
+	wallet := &models.Wallet{
+		Address:    address,
+		PrivateKey: fmt.Sprintf("%x", privateKeyBytes),
+		Balance:    0,
+	}
+
+	if err := bc.db.SaveWallet(wallet); err != nil {
+		return nil, err
+	}
+
+	return wallet, nil
+}
+
+func (bc *Blockchain) TopUpWallet(address string) error {
+	err := bc.db.TopUpWallet(address)
+	if err != nil {
+		fmt.Printf("TopUpWallet error: %v\n", err)
+		return err
+	}
+	return nil
+}
+
+func (bc *Blockchain) Transfer(addressFrom string, addressTo string, balance float64) error {
+	err := bc.db.Transfer(addressFrom, addressTo, balance)
+	if err != nil {
+		log.Println("转账失败:", err)
+	} else {
+		log.Println("转账成功")
+	}
+	return nil
+}
+
+func (bc *Blockchain) GetBalance(address string) (float64, error) {
+	balance, err := bc.db.GetBalance(address)
+	if err != nil {
+		return 0, err
+	}
+	return balance, nil
 }

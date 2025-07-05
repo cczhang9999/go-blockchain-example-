@@ -23,3 +23,9 @@ type Transaction struct {
 	Amount    float64   `json:"amount"`
 	Timestamp time.Time `json:"timestamp"`
 }
+
+type Wallet struct {
+	Address    string
+	PrivateKey string
+	Balance    float64
+}
