@@ -1,33 +1,25 @@
 package main
 
 import (
-	"hello-go/blockchain"
-	"hello-go/config"
-	"hello-go/database"
-	"log"
+	"hello-go/handlers"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	// 初始化数据库连接
-	dbConfig := config.GetDBConfig()
-	db, err := database.NewMySQLDB(dbConfig)
-	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
-	}
-	defer db.Close()
 
-	// 初始化区块链数据访问层
-	blockchainDB := database.NewBlockchainMySQL(db)
-	// 创建区块链实例
-	bc := blockchain.NewBlockchain(blockchainDB)
-	// 创建钱包
-	wallet1, _ := bc.CreateNewWallet()
-	wallet2, _ := bc.CreateNewWallet()
+	r := gin.Default()
+	r.POST("/wallet", handlers.CreateWallet)
+	r.GET("/wallet/:address", handlers.GetBalance)
+	r.POST("/transfer", handlers.Transfer)
+	// 你可以继续添加区块链相关接口
+	r.Run(":8080")
+
 	// 给 wallet充值
-	bc.TopUpWallet(wallet1.Address)
+	//bc.TopUpWallet(wallet1.Address)
 	// 转账
-	err = bc.Transfer(wallet1.Address, wallet2.Address, 50)
+	//err = bc.Transfer(wallet1.Address, wallet2.Address, 50)
 	//余额查询
-	balanc, _ := bc.GetBalance(wallet1.Address)
-	log.Panicln(balanc)
+	//balanc, _ := bc.GetBalance(wallet1.Address)
+	//log.Panicln(balanc)
 }
