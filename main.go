@@ -1,64 +1,89 @@
 package main
 
 import (
-	"fmt"
-	"hello-go/blockchain"
-	"hello-go/config"
-	"hello-go/database"
+	"hello-go/handlers"
 	"log"
+	"net/http"
+	"os"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	// 初始化数据库连接
-	dbConfig := config.GetDBConfig()
-	db, err := database.NewMySQLDB(dbConfig)
-	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+	// 设置日志格式
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	// 根据环境设置Gin模式
+	if os.Getenv("GIN_MODE") == "release" {
+		gin.SetMode(gin.ReleaseMode)
 	}
-	defer db.Close()
 
-	// 初始化区块链数据访问层
-	blockchainDB := database.NewBlockchainMySQL(db)
+	// 创建Gin路由器
+	r := gin.Default()
 
-	// 创建区块链实例
-	bc := blockchain.NewBlockchain(blockchainDB)
+	// 添加中间件
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
 
-	// 检查是否有创世区块，如果没有则创建
-	latestBlock, err := blockchainDB.GetLatestBlock()
-	if err != nil {
-		// 创建创世区块
-		genesis, err := bc.CreateGenesisBlock()
-		if err != nil {
-			log.Fatal("Failed to create genesis block:", err)
+	// 添加CORS中间件
+	r.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
 		}
-		fmt.Printf("Created genesis block: %s\n", genesis.Hash)
-	} else {
-		fmt.Printf("Latest block: Index=%d, Hash=%s\n", latestBlock.Index, latestBlock.Hash)
+
+		c.Next()
+	})
+
+	// API路由组
+	api := r.Group("/api/v1")
+	{
+		// 钱包相关接口
+		api.POST("/wallet", handlers.CreateWallet)
+		api.GET("/wallet/:address", handlers.GetBalance)
+		api.POST("/transfer", handlers.Transfer)
+
+		// 区块链信息接口
+		api.GET("/blockchain", handlers.GetBlockchainInfo)
+
+		// 健康检查接口
+		api.GET("/health", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{
+				"status":  "ok",
+				"message": "Blockchain API is running",
+			})
+		})
 	}
 
-	// 创建新区块
-	newBlock, err := bc.CreateNewBlock("Transaction data 1", 4)
-	if err != nil {
-		log.Fatal("Failed to create new block:", err)
-	}
-	fmt.Printf("Created new block: Index=%d, Hash=%s\n", newBlock.Index, newBlock.Hash)
+	// 根路径
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Welcome to Blockchain API",
+			"version": "1.0.0",
+			"endpoints": gin.H{
+				"create_wallet":   "POST /api/v1/wallet",
+				"get_balance":     "GET /api/v1/wallet/:address",
+				"transfer":        "POST /api/v1/transfer",
+				"blockchain_info": "GET /api/v1/blockchain",
+				"health_check":    "GET /api/v1/health",
+			},
+		})
+	})
 
-	// 验证区块链
-	isValid, err := bc.ValidateChain()
-	if err != nil {
-		log.Fatal("Failed to validate chain:", err)
-	}
-	fmt.Printf("Blockchain is valid: %t\n", isValid)
-
-	// 显示所有区块
-	blocks, err := blockchainDB.GetAllBlocks()
-	if err != nil {
-		log.Fatal("Failed to get all blocks:", err)
+	// 启动服务器
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
-	fmt.Println("\nAll blocks:")
-	for _, block := range blocks {
-		fmt.Printf("Index: %d, Hash: %s, Data: %s\n",
-			block.Index, block.Hash, block.Data)
+	log.Printf("Starting blockchain server on port %s", port)
+	log.Printf("API documentation available at http://localhost:%s", port)
+
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal("Failed to start server:", err)
 	}
 }
