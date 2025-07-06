@@ -177,3 +177,5 @@ func GetBlockchainInfo(c *gin.Context) {
 		},
 	})
 }
+
+// 交易记录
