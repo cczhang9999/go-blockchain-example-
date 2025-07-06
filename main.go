@@ -47,6 +47,11 @@ func main() {
 		api.GET("/wallet/:address", handlers.GetBalance)
 		api.POST("/transfer", handlers.Transfer)
 
+		// 交易记录相关接口
+		api.GET("/transactions", handlers.GetAllTransactions)
+		api.GET("/transactions/history/:address", handlers.GetTransactionHistory)
+		api.GET("/transactions/block/:block_id", handlers.GetTransactionsByBlock)
+
 		// 区块链信息接口
 		api.GET("/blockchain", handlers.GetBlockchainInfo)
 
@@ -65,11 +70,14 @@ func main() {
 			"message": "Welcome to Blockchain API",
 			"version": "1.0.0",
 			"endpoints": gin.H{
-				"create_wallet":   "POST /api/v1/wallet",
-				"get_balance":     "GET /api/v1/wallet/:address",
-				"transfer":        "POST /api/v1/transfer",
-				"blockchain_info": "GET /api/v1/blockchain",
-				"health_check":    "GET /api/v1/health",
+				"create_wallet":           "POST /api/v1/wallet",
+				"get_balance":             "GET /api/v1/wallet/:address",
+				"transfer":                "POST /api/v1/transfer",
+				"get_all_transactions":    "GET /api/v1/transactions",
+				"get_transaction_history": "GET /api/v1/transactions/history/:address",
+				"get_block_transactions":  "GET /api/v1/transactions/block/:block_id",
+				"blockchain_info":         "GET /api/v1/blockchain",
+				"health_check":            "GET /api/v1/health",
 			},
 		})
 	})
